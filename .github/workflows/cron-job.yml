@@ -27,8 +27,10 @@ jobs:
           CSE_CONFIG: ${{ secrets.CSE_CONFIG }}
         run: python script.py
 
-      - name: Commit and Push Changes
+      - name: Stash Unstaged Changes (if any)
         run: |
+          git diff --quiet || git stash --include-untracked
+
       - name: Commit and Push Changes
         run: |
           git config --global user.name "GitHub Actions"
