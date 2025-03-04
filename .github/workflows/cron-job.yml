@@ -1,0 +1,28 @@
+name: Daily API Key Rotation Job
+
+on:
+  schedule:
+    - cron: "0 0 * * *"  # Runs daily at midnight UTC
+  workflow_dispatch:  # Allows manual execution
+
+jobs:
+  fetch-company-names:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run API Key Rotation Script
+        env:
+          API_KEYS: ${{ secrets.API_KEYS }}
+          CSE_CONFIG: ${{ secrets.CSE_CONFIG }}
+        run: python script.py
