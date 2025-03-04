@@ -4,6 +4,7 @@ import itertools
 import requests
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import subprocess
 
 # Load API keys and CSE configurations from environment variables
 api_keys = json.loads(os.getenv("API_KEYS", "[]"))
@@ -16,6 +17,7 @@ results_per_page = 10  # Number of results per API call
 max_results = 100  # Maximum number of results per CSE query
 captured_links = []  # Stores extracted company links
 base_url = "https://www.googleapis.com/customsearch/v1"  # Google Custom Search API base URL
+
 
 # ========================= Function to Fetch Results =========================
 def fetch_results(cse_id, query, start_index):
@@ -41,6 +43,7 @@ def fetch_results(cse_id, query, start_index):
     response = requests.get(base_url, params=params)
     time.sleep(1)  # Avoid overwhelming the API with requests
     return response.json()
+
 
 # ========================= Function to Extract Unique Company Names =========================
 def get_all_company_names():
@@ -101,9 +104,19 @@ def get_all_company_names():
     with open(json_file, "w") as f:
         json.dump(existing_data + new_entries, f, indent=4)
 
+    # ========================= Git Operations to Commit and Push =========================
+    try:
+        # Add, commit, and push changes to the repository
+        subprocess.run(["git", "add", json_file], check=True)
+        subprocess.run(["git", "commit", "-m", "Update websites.json with new data"], check=True)
+        subprocess.run(["git", "push"], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error during git operations: {e}")
+
     # Return list of unique company names
     all_company_names = [entry["company_name"] for entry in (existing_data + new_entries)]
     return all_company_names
+
 
 # ========================= Run the Function =========================
 company_list = get_all_company_names()
