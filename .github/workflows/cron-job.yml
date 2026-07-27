@@ -1,47 +1,88 @@
-name: Daily API Key Rotation Job
+name: Refresh JOIN companies
 
 on:
   schedule:
-    - cron: "0 0 * * *"  # Runs daily at midnight UTC
-  workflow_dispatch:  # Allows manual execution
+    - cron: "17 20 * * *"
+  workflow_dispatch:
+    inputs:
+      crawl_count:
+        description: "Recent Common Crawl collections to union"
+        required: true
+        default: "4"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: join-company-refresh
+  cancel-in-progress: false
 
 jobs:
-  fetch-company-names:
+  refresh-companies:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set Up Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
+          cache: pip
 
-      - name: Install Dependencies
-        run: pip install requests
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
-      - name: Run API Key Rotation Script
+      - name: Validate installation
+        run: python -m pip check
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Discover JOIN companies
         env:
           API_KEYS: ${{ secrets.API_KEYS }}
           CSE_CONFIG: ${{ secrets.CSE_CONFIG }}
+          CC_CRAWL_COUNT: ${{ github.event.inputs.crawl_count || '4' }}
+          DISCOVERY_TIMEOUT_SECONDS: "180"
+          MIN_COMPANY_COUNT: "6000"
+          MAX_COMPANY_COUNT: "50000"
         run: python script.py
 
-      - name: Stash Unstaged Changes (if any)
+      - name: Validate generated catalog
         run: |
-          git diff --quiet || git stash --include-untracked
+          python - <<'PY'
+          import json
+          from pathlib import Path
 
-      - name: Commit and Push Changes
+          records = json.loads(Path("websites.json").read_text(encoding="utf-8"))
+          slugs = [record["company_name"] for record in records]
+          if len(records) < 6000:
+              raise SystemExit(f"Catalog is unexpectedly small: {len(records)}")
+          if len(records) != len(set(slugs)):
+              raise SystemExit("Catalog contains duplicate company slugs")
+          if slugs != sorted(slugs):
+              raise SystemExit("Catalog is not sorted")
+          print(f"Validated {len(records)} unique JOIN companies")
+          PY
+
+      - name: Commit catalog changes
+        shell: bash
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          
-          # Pull the latest changes from the remote
-          git pull origin main --rebase
-
-          # Check if there are any changes to commit
-          git diff --quiet || (
-            git add websites.json
-            git commit -m "Auto-update websites.json"
-            git push origin main
-          )
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add websites.json
+          if git diff --cached --quiet; then
+            echo "No company catalog changes"
+            exit 0
+          fi
+          git commit -m "Refresh JOIN company catalog"
+          git pull --rebase origin main
+          git push origin "HEAD:${GITHUB_REF_NAME}"
