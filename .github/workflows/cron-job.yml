@@ -1,6 +1,10 @@
 name: Refresh JOIN companies
 
 on:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "17 20 * * *"
   workflow_dispatch:
@@ -46,6 +50,7 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Discover JOIN companies
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         env:
           API_KEYS: ${{ secrets.API_KEYS }}
           CSE_CONFIG: ${{ secrets.CSE_CONFIG }}
@@ -73,6 +78,7 @@ jobs:
           PY
 
       - name: Commit catalog changes
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           set -euo pipefail

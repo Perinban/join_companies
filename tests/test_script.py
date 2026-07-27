@@ -50,10 +50,12 @@ class DiscoveryTests(unittest.TestCase):
                 '{"url":"https://join.com/companies/acme"}',
                 '{"url":"https://join.com/companies/acme/123-engineer"}',
                 '{"url":"https://join.com/companies/beta/456-analyst"}',
+                '{"url":"https://join.com/companies/gamma"}',
                 '{"url":"https://join.com/de"}',
             ]
         )
-        self.assertEqual(script.parse_common_crawl_records(payload), {"acme", "beta"})
+        self.assertEqual(script.parse_common_crawl_records(payload), {"acme", "beta", "gamma"})
+        self.assertEqual(script.parse_cdx_records(payload, require_job_url=True), {"acme", "beta"})
 
     def test_catalog_is_sorted_and_deduplicated(self):
         with tempfile.TemporaryDirectory() as directory:

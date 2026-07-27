@@ -55,6 +55,17 @@ def extract_company_slug(url: str) -> str | None:
 company_slug_from_url = extract_company_slug
 
 
+def is_join_job_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url.strip())
+    except (AttributeError, ValueError):
+        return False
+    if parsed.hostname and parsed.hostname.lower() not in JOIN_HOSTS:
+        return False
+    parts = [part for part in parsed.path.split("/") if part]
+    return len(parts) >= 3 and parts[0] == "companies" and normalize_company_slug(parts[1]) is not None
+
+
 def canonical_entry(slug: str) -> dict[str, str]:
     normalized = normalize_company_slug(slug)
     if not normalized:
@@ -161,7 +172,7 @@ def discover_from_job_url_source(
     return companies
 
 
-def parse_cdx_records(payload: str) -> set[str]:
+def parse_cdx_records(payload: str, *, require_job_url: bool = False) -> set[str]:
     payload = payload.strip()
     if not payload:
         return set()
@@ -191,7 +202,11 @@ def parse_cdx_records(payload: str) -> set[str]:
             url = record[0]
         else:
             url = None
-        if isinstance(url, str) and (slug := extract_company_slug(url)):
+        if not isinstance(url, str):
+            continue
+        if require_job_url and not is_join_job_url(url):
+            continue
+        if slug := extract_company_slug(url):
             companies.add(slug)
     return companies
 
@@ -265,7 +280,7 @@ def discover_from_common_crawl(
                     timeout=timeout,
                 )
                 page_response.raise_for_status()
-                collection_companies.update(parse_common_crawl_records(page_response.text))
+                collection_companies.update(parse_cdx_records(page_response.text, require_job_url=True))
             companies.update(collection_companies)
             successful += 1
             LOGGER.info(
@@ -364,7 +379,7 @@ def main() -> int:
     LOGGER.info("Loaded %d existing companies", len(existing_slugs))
     session = build_session()
 
-    sources = (
+    sources = [
         ("sitemap", lambda: discover_from_sitemaps(session, os.getenv("JOIN_SITEMAP_INDEX", DEFAULT_SITEMAP_INDEX))),
         (
             "common_crawl",
@@ -376,9 +391,11 @@ def main() -> int:
             ),
         ),
         ("job_urls", lambda: discover_from_job_url_source(session, os.getenv("JOB_URL_SOURCE", DEFAULT_JOB_URL_SOURCE))),
-        ("archive_cdx", lambda: discover_from_cdx(session, os.getenv("JOIN_CDX_URL", DEFAULT_CDX_URL))),
         ("google_cse", lambda: discover_from_google_cse(session)),
-    )
+    ]
+    configured_archive = os.getenv("JOIN_CDX_URL", "").strip()
+    if configured_archive:
+        sources.insert(-1, ("archive_cdx", lambda: discover_from_cdx(session, configured_archive)))
     source_counts: dict[str, int] = {}
     try:
         for name, discover in sources:
