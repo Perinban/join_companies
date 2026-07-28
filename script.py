@@ -307,6 +307,25 @@ def load_existing(path: Path) -> tuple[list[dict[str, str]], set[str]]:
     return entries, slugs
 
 
+def merge_company_catalog(
+    existing_slugs: Iterable[str],
+    discovered_sources: Iterable[Iterable[str]],
+) -> set[str]:
+    """Preserve every known valid company and add newly discovered companies."""
+    merged = {
+        normalized
+        for slug in existing_slugs
+        if (normalized := normalize_company_slug(str(slug)))
+    }
+    for source in discovered_sources:
+        merged.update(
+            normalized
+            for slug in source
+            if (normalized := normalize_company_slug(str(slug)))
+        )
+    return merged
+
+
 def discover_from_google_cse(session: requests.Session) -> set[str]:
     api_keys = json.loads(os.getenv("API_KEYS", "[]"))
     configurations = json.loads(os.getenv("CSE_CONFIG", "[]"))
@@ -375,8 +394,8 @@ def main() -> int:
     minimum_count = int(os.getenv("MIN_COMPANY_COUNT", "6000"))
     maximum_count = int(os.getenv("MAX_COMPANY_COUNT", "50000"))
     _, existing_slugs = load_existing(output_path)
-    discovered = set(existing_slugs)
-    LOGGER.info("Loaded %d existing companies", len(existing_slugs))
+    discovered_sources: list[set[str]] = []
+    LOGGER.info("Loaded and will preserve %d existing companies", len(existing_slugs))
     session = build_session()
 
     sources = [
@@ -405,10 +424,11 @@ def main() -> int:
                 LOGGER.warning("%s discovery failed: %s", name, error)
                 values = set()
             source_counts[name] = len(values)
-            discovered.update(values)
+            discovered_sources.append(values)
     finally:
         session.close()
 
+    discovered = merge_company_catalog(existing_slugs, discovered_sources)
     if len(discovered) < minimum_count:
         raise RuntimeError(f"Refusing undersized catalog: {len(discovered)} companies; minimum is {minimum_count}")
     if len(discovered) > maximum_count:

@@ -17,9 +17,15 @@ The refresh now preserves the existing catalog and unions companies from four so
 
 The sitemap is tried first. When JOIN's Cloudflare configuration blocks the XML request, Common Crawl provides independent URL discovery without downloading archived page bodies or bypassing JOIN access controls. Common Crawl company-page-only records are excluded by default; a company is added only when an archived JOIN job URL identifies it.
 
-Company URLs are canonicalized, deduplicated, and sorted. Existing valid slugs are never removed automatically, so a temporary source outage cannot shrink the catalog.
+Company URLs are canonicalized, deduplicated, and sorted. The catalog uses a strictly non-shrinking union:
 
-No public source can guarantee every private or never-indexed JOIN account. This approach removes the Google 100-result ceiling and continuously accumulates employers seen advertising public jobs, without loading the downstream scraper with the much larger all-time archive of dormant company pages.
+```text
+final catalog = existing catalog + every valid company discovered by any source
+```
+
+The restored baseline contains 29,200 unique publicly discovered JOIN company slugs. A company is not deleted merely because it has no current job, disappears from a recent crawl, or a public source temporarily fails. Discovery runs may add valid companies but must never replace the preserved catalog with a smaller source-specific subset.
+
+No public source can guarantee every private or never-indexed JOIN account. The catalog therefore represents publicly discoverable companies accumulated over time; downstream job scraping determines which of those companies currently have active jobs.
 
 ## Schedule
 
