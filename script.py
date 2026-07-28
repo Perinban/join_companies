@@ -391,8 +391,6 @@ def main() -> int:
     output_path = Path(os.getenv("OUTPUT_FILE", "websites.json"))
     collection_count = int(os.getenv("CC_CRAWL_COUNT", "4"))
     discovery_timeout = int(os.getenv("DISCOVERY_TIMEOUT_SECONDS", "180"))
-    minimum_count = int(os.getenv("MIN_COMPANY_COUNT", "6000"))
-    maximum_count = int(os.getenv("MAX_COMPANY_COUNT", "50000"))
     _, existing_slugs = load_existing(output_path)
     discovered_sources: list[set[str]] = []
     LOGGER.info("Loaded and will preserve %d existing companies", len(existing_slugs))
@@ -429,10 +427,6 @@ def main() -> int:
         session.close()
 
     discovered = merge_company_catalog(existing_slugs, discovered_sources)
-    if len(discovered) < minimum_count:
-        raise RuntimeError(f"Refusing undersized catalog: {len(discovered)} companies; minimum is {minimum_count}")
-    if len(discovered) > maximum_count:
-        raise RuntimeError(f"Refusing oversized catalog: {len(discovered)} companies; maximum is {maximum_count}")
     changed = write_catalog(output_path, discovered)
     LOGGER.info(
         "%s %d unique companies in %s; source counts=%s",
