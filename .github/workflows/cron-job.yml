@@ -56,8 +56,6 @@ jobs:
           CSE_CONFIG: ${{ secrets.CSE_CONFIG }}
           CC_CRAWL_COUNT: ${{ github.event.inputs.crawl_count || '4' }}
           DISCOVERY_TIMEOUT_SECONDS: "180"
-          MIN_COMPANY_COUNT: "6000"
-          MAX_COMPANY_COUNT: "50000"
         run: python script.py
 
       - name: Validate generated catalog
