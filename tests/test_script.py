@@ -67,5 +67,16 @@ class DiscoveryTests(unittest.TestCase):
             )
 
 
+    def test_merge_company_catalog_never_drops_existing(self):
+        merged = script.merge_company_catalog(
+            {"historic-company", "active-company"},
+            [{"active-company", "new-company"}, set()],
+        )
+        self.assertEqual(
+            merged,
+            {"historic-company", "active-company", "new-company"},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
